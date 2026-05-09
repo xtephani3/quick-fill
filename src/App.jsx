@@ -89,7 +89,6 @@ function App() {
   const [dragActive, setDragActive] = useState(false)
   const [isPreviewOpen, setIsPreviewOpen] = useState(false)
   const [pageCount, setPageCount] = useState(0)
-  const [previewPage, setPreviewPage] = useState(1)
   const [previewError, setPreviewError] = useState('')
   const [recentDocuments, setRecentDocuments] = useState([])
   const [selectedDocument, setSelectedDocument] = useState(null)
@@ -108,6 +107,7 @@ function App() {
 
   const fileInputRef = useRef(null)
   const previewCloseButtonRef = useRef(null)
+  const previewScrollRef = useRef(null)
   const objectUrlRef = useRef(null)
   const uploadRequestRef = useRef(0)
 
@@ -221,7 +221,6 @@ function App() {
     setPageCount(0)
     setIsPreviewOpen(true)
     setPreviewError('')
-    setPreviewPage(1)
     setSelectedDocument(nextDocument)
 
     if (!cloudinaryConfigured) {
@@ -332,7 +331,6 @@ function App() {
 
   function handleDocumentLoadSuccess({ numPages }) {
     setPageCount(numPages)
-    setPreviewPage(1)
     setPreviewError('')
 
     setSelectedDocument((currentDocument) => {
@@ -351,14 +349,6 @@ function App() {
     setPreviewError(getUploadErrorMessage(error))
   }
 
-  function showPreviousPage() {
-    setPreviewPage((currentPage) => Math.max(1, currentPage - 1))
-  }
-
-  function showNextPage() {
-    setPreviewPage((currentPage) => Math.min(pageCount, currentPage + 1))
-  }
-
   function openPreview(documentItem = selectedDocument) {
     if (!documentItem?.localUrl) {
       return
@@ -366,13 +356,20 @@ function App() {
 
     setSelectedDocument(documentItem)
     setPreviewError('')
-    setPreviewPage(1)
     setIsPreviewOpen(true)
   }
 
   function closePreview() {
     setIsPreviewOpen(false)
   }
+
+  useEffect(() => {
+    if (!isPreviewOpen) {
+      return
+    }
+
+    previewScrollRef.current?.scrollTo({ top: 0, behavior: 'auto' })
+  }, [isPreviewOpen, selectedDocument?.id])
 
   return (
     <main className="min-h-svh overflow-x-hidden bg-slate-50 text-slate-600">
@@ -445,10 +442,10 @@ function App() {
             </div>
 
             <div className="grid gap-2 rounded-lg border border-slate-200 bg-white p-4">
-              <strong className="text-slate-900">What you can do right away</strong>
+                <strong className="text-slate-900">What you can do right away</strong>
               <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
                 <span className="rounded-full bg-slate-100 px-3 py-1">Instant modal preview</span>
-                <span className="rounded-full bg-slate-100 px-3 py-1">Page-by-page review</span>
+                <span className="rounded-full bg-slate-100 px-3 py-1">Scroll through every page</span>
                 <span className="rounded-full bg-slate-100 px-3 py-1">25 MB max</span>
                 <span className="rounded-full bg-slate-100 px-3 py-1">PDF only</span>
               </div>
@@ -768,7 +765,7 @@ function App() {
               </div>
             </div>
 
-            <div className="grid gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 sm:px-5 lg:flex lg:flex-wrap lg:items-center lg:justify-between">
+            <div className="grid gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 sm:px-5">
               <div className="flex flex-wrap gap-2 text-sm text-slate-500">
                 <span className="rounded-full bg-white px-3 py-1">
                   {selectedDocument.sizeLabel}
@@ -780,32 +777,12 @@ function App() {
                   {selectedDocument.statusLabel}
                 </span>
               </div>
-
-              <div className="grid grid-cols-[1fr_auto_1fr] items-center gap-2">
-                <button
-                  className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  type="button"
-                  onClick={showPreviousPage}
-                  disabled={previewPage <= 1}
-                >
-                  Previous
-                </button>
-                <span className="whitespace-nowrap text-center text-sm font-medium text-slate-500">
-                  Page {previewPage}
-                  {pageCount ? ` of ${pageCount}` : ''}
-                </span>
-                <button
-                  className="inline-flex min-h-10 items-center justify-center rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-                  type="button"
-                  onClick={showNextPage}
-                  disabled={!pageCount || previewPage >= pageCount}
-                >
-                  Next
-                </button>
-              </div>
             </div>
 
-            <div className="overflow-auto p-3 sm:p-5">
+            <div
+              ref={previewScrollRef}
+              className="overflow-auto p-3 sm:p-5"
+            >
               <div className="rounded-xl border border-slate-200 bg-white p-2 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.18)] sm:rounded-2xl sm:p-3">
                 <Document
                   file={previewFile}
@@ -817,12 +794,17 @@ function App() {
                   onLoadSuccess={handleDocumentLoadSuccess}
                   onLoadError={handleDocumentLoadError}
                 >
-                  <Page
-                    pageNumber={previewPage}
-                    renderAnnotationLayer={false}
-                    renderTextLayer={false}
-                    width={previewPageWidth}
-                  />
+                  <div className="grid gap-3">
+                    {Array.from({ length: pageCount }, (_, index) => (
+                      <Page
+                        key={`preview-page-${index + 1}`}
+                        pageNumber={index + 1}
+                        renderAnnotationLayer={false}
+                        renderTextLayer={false}
+                        width={previewPageWidth}
+                      />
+                    ))}
+                  </div>
                 </Document>
               </div>
 
