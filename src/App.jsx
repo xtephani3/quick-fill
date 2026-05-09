@@ -98,6 +98,13 @@ function App() {
     progress: 0,
     status: 'idle',
   })
+  const [viewportWidth, setViewportWidth] = useState(() => {
+    if (typeof window === 'undefined') {
+      return 1280
+    }
+
+    return window.innerWidth
+  })
 
   const fileInputRef = useRef(null)
   const previewCloseButtonRef = useRef(null)
@@ -135,10 +142,24 @@ function App() {
     }
   }, [isPreviewOpen])
 
+  useEffect(() => {
+    function handleResize() {
+      setViewportWidth(window.innerWidth)
+    }
+
+    window.addEventListener('resize', handleResize)
+
+    return () => {
+      window.removeEventListener('resize', handleResize)
+    }
+  }, [])
+
   const cloudinaryConfigured = Boolean(
     CLOUDINARY_CLOUD_NAME && CLOUDINARY_UPLOAD_PRESET,
   )
   const previewFile = selectedDocument?.localUrl ?? null
+  const previewPageWidth =
+    viewportWidth < 640 ? Math.max(240, viewportWidth - 72) : viewportWidth < 1024 ? 560 : 820
 
   function updateRecentDocuments(nextDocument) {
     setRecentDocuments((currentDocuments) => {
@@ -156,7 +177,7 @@ function App() {
   async function prepareDocument(file) {
     if (!isPdfFile(file)) {
       setUploadState({
-        error: 'Only PDF files are supported.',
+        error: 'Choose a PDF file to continue.',
         progress: 0,
         status: 'error',
       })
@@ -166,7 +187,7 @@ function App() {
 
     if (file.size > MAX_PDF_SIZE) {
       setUploadState({
-        error: 'The selected file is larger than 25 MB.',
+        error: 'Choose a PDF under 25 MB.',
         progress: 0,
         status: 'error',
       })
@@ -205,7 +226,7 @@ function App() {
 
     if (!cloudinaryConfigured) {
       setUploadState({
-        error: 'Your PDF is ready for preview.',
+        error: 'Your PDF is ready. Review it now.',
         progress: 0,
         status: 'needs-config',
       })
@@ -264,7 +285,7 @@ function App() {
       })
       updateRecentDocuments({
         ...nextDocument,
-        statusLabel: 'Preview ready, upload failed',
+        statusLabel: 'Preview ready',
       })
     } finally {
       resetInput()
@@ -387,57 +408,56 @@ function App() {
       </header>
 
       <section
-        className="mx-auto grid w-[min(1120px,calc(100%-40px))] grid-cols-[minmax(0,0.88fr)_minmax(360px,1.12fr)] items-start gap-12 py-20 max-[820px]:w-[calc(100%-32px)] max-[820px]:grid-cols-1 max-[820px]:gap-7 max-[820px]:py-12"
+        className="mx-auto grid w-[min(1120px,calc(100%-40px))] items-start gap-8 py-12 sm:gap-10 sm:py-16 lg:grid-cols-[minmax(0,0.88fr)_minmax(22rem,1.12fr)] lg:gap-12 lg:py-20 max-[820px]:w-[calc(100%-32px)]"
         aria-labelledby="upload-title"
       >
-        <div className="text-left">
+        <div className="min-w-0 text-left">
           <p className="mb-3 text-[13px] font-extrabold uppercase tracking-widest text-orange-700">
-            PDF workspace
+            Fast PDF review
           </p>
           <h1
             className="mb-5 max-w-2xl text-[clamp(42px,7vw,76px)] font-bold leading-none text-slate-900"
             id="upload-title"
           >
-            Upload a PDF to get started
+            Open your PDF and get to the right page faster
           </h1>
           <p className="max-w-xl text-[19px] leading-8">
-            Drop in a document, host it in Cloudinary, and move straight into a
-            clean preview view without leaving the workspace.
+            Drop in a file, jump straight into a focused preview, and keep the
+            document moving without the usual friction.
           </p>
 
-          <div className="mt-10 grid gap-3 text-sm text-slate-500">
-            <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3">
+          <div className="mt-8 grid gap-3 text-sm text-slate-500 sm:mt-10">
+            <div className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 sm:flex-row sm:items-center sm:gap-3">
               <span
-                className={`inline-flex min-h-8 items-center rounded-full px-3 font-semibold ${
+                className={`inline-flex min-h-8 whitespace-nowrap items-center rounded-full px-3 font-semibold ${
                   cloudinaryConfigured
                     ? 'bg-teal-100 text-teal-900'
                     : 'bg-orange-100 text-orange-800'
                 }`}
               >
-                {cloudinaryConfigured ? 'Uploads enabled' : 'Preview mode'}
+                {cloudinaryConfigured ? 'Ready in one step' : 'Instant preview'}
               </span>
               <span>
                 {cloudinaryConfigured
-                  ? 'Your PDF can be uploaded and previewed here.'
-                  : 'You can preview PDFs in this workspace.'}
+                  ? 'Choose a PDF and the preview opens right away.'
+                  : 'Choose a PDF and start reviewing immediately.'}
               </span>
             </div>
 
             <div className="grid gap-2 rounded-lg border border-slate-200 bg-white p-4">
-              <strong className="text-slate-900">Workspace rules</strong>
-              <div className="flex flex-wrap gap-2.5">
-                <span className="rounded-full bg-slate-100 px-3 py-1">PDF only</span>
+              <strong className="text-slate-900">What you can do right away</strong>
+              <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+                <span className="rounded-full bg-slate-100 px-3 py-1">Instant modal preview</span>
+                <span className="rounded-full bg-slate-100 px-3 py-1">Page-by-page review</span>
                 <span className="rounded-full bg-slate-100 px-3 py-1">25 MB max</span>
-                <span className="rounded-full bg-slate-100 px-3 py-1">
-                  One-page preview navigation
-                </span>
+                <span className="rounded-full bg-slate-100 px-3 py-1">PDF only</span>
               </div>
             </div>
           </div>
         </div>
 
         <section
-          className="rounded-lg border border-slate-200 bg-white/90 p-4 shadow-[0_24px_70px_rgba(22,28,36,0.12)]"
+          className="min-w-0 rounded-lg border border-slate-200 bg-white/90 p-4 shadow-[0_24px_70px_rgba(22,28,36,0.12)]"
           aria-label="PDF upload area"
         >
           <div
@@ -474,15 +494,15 @@ function App() {
                 </svg>
               </span>
 
-              <span className="grid gap-1.5 text-center">
-                <strong className="text-2xl text-slate-900 max-[520px]:text-[21px]">
-                  {dragActive ? 'Release to upload your PDF' : 'Drop your PDF here'}
+              <span className="grid max-w-[28rem] gap-1.5 text-center">
+                <strong className="text-[clamp(1.3125rem,1.1rem+1vw,1.5rem)] text-slate-900">
+                  {dragActive ? 'Release to open your preview' : 'Drop your PDF and review it now'}
                 </strong>
-                <span>or browse files from your computer</span>
+                <span>No detours. Pick a file and we open the preview immediately.</span>
               </span>
 
               <span className="inline-flex min-h-11 items-center justify-center rounded-lg bg-teal-800 px-5 font-bold text-white">
-                Select PDF
+                Choose PDF
               </span>
             </label>
 
@@ -495,7 +515,7 @@ function App() {
               onChange={handleInputChange}
             />
 
-            <div className="flex flex-wrap justify-between gap-2.5 px-1 text-sm text-slate-500 max-[520px]:flex-col">
+            <div className="flex flex-col gap-2.5 px-1 text-sm text-slate-500 sm:flex-row sm:flex-wrap sm:justify-between">
               <span>PDF only</span>
               <span>Up to 25 MB</span>
               <span>{selectedDocument?.name ?? 'No file selected'}</span>
@@ -507,7 +527,7 @@ function App() {
                 aria-live="polite"
               >
                 <div className="flex items-center justify-between gap-3">
-                  <strong className="text-slate-900">Uploading to Cloudinary</strong>
+                  <strong className="text-slate-900">Preparing your document</strong>
                   <span className="font-semibold text-teal-900">
                     {uploadState.progress}%
                   </span>
@@ -540,7 +560,7 @@ function App() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="mb-1 text-xs font-extrabold uppercase tracking-[0.2em] text-orange-700">
-                    Ready
+                    Ready to review
                   </p>
                   <h2 className="text-xl font-bold text-slate-900">
                     {selectedDocument.name}
@@ -552,7 +572,7 @@ function App() {
                 </span>
               </div>
 
-              <div className="flex flex-wrap gap-2 text-sm text-slate-500">
+              <div className="grid grid-cols-1 gap-2 text-sm text-slate-500 sm:grid-cols-3">
                 <span className="rounded-full bg-slate-100 px-3 py-1">
                   {selectedDocument.sizeLabel}
                 </span>
@@ -564,13 +584,13 @@ function App() {
                 </span>
               </div>
 
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                 <button
                   className="inline-flex min-h-11 items-center rounded-lg bg-teal-800 px-4 font-semibold text-white"
                   type="button"
                   onClick={() => openPreview(selectedDocument)}
                 >
-                  Open preview
+                  Continue reviewing
                 </button>
 
                 {selectedDocument.hostedUrl ? (
@@ -580,7 +600,7 @@ function App() {
                     target="_blank"
                     rel="noreferrer"
                   >
-                    Open hosted PDF
+                    Open file
                   </a>
                 ) : null}
 
@@ -588,7 +608,7 @@ function App() {
                   className="inline-flex min-h-11 cursor-pointer items-center rounded-lg border border-slate-200 bg-white px-4 font-semibold text-slate-700"
                   htmlFor="pdf-upload"
                 >
-                  Choose another file
+                  Upload another PDF
                 </label>
               </div>
             </div>
@@ -597,7 +617,7 @@ function App() {
       </section>
 
       <section
-        className="mx-auto flex w-[min(1120px,calc(100%-40px))] items-start justify-between gap-6 border-t border-slate-200 py-8 pb-14 text-left max-[820px]:w-[calc(100%-32px)] max-[820px]:flex-col max-[820px]:items-stretch"
+        className="mx-auto flex w-[min(1120px,calc(100%-40px))] flex-col gap-6 border-t border-slate-200 py-8 pb-14 text-left lg:flex-row lg:items-start lg:justify-between max-[820px]:w-[calc(100%-32px)]"
         id="recent"
         aria-labelledby="recent-title"
       >
@@ -609,16 +629,16 @@ function App() {
             className="m-0 text-[clamp(26px,4vw,38px)] leading-tight text-slate-900"
             id="recent-title"
           >
-            Your latest PDF activity appears here
+            Jump back into your latest files
           </h2>
         </div>
 
-        <div className="grid min-w-[min(470px,100%)] gap-3 max-[820px]:min-w-0">
+        <div className="grid min-w-0 gap-3 lg:min-w-[min(470px,100%)] lg:flex-1">
           {recentDocuments.length ? (
             recentDocuments.map((documentItem) => (
               <article
                 key={documentItem.id}
-                className="flex items-center gap-3.5 rounded-lg border border-slate-200 bg-white p-4"
+                className="flex flex-col gap-3.5 rounded-lg border border-slate-200 bg-white p-4 sm:flex-row sm:items-center"
               >
                 <span
                   className="grid h-14 w-12 shrink-0 place-items-center rounded-md bg-red-700 text-xs font-extrabold text-white"
@@ -638,11 +658,11 @@ function App() {
                   </p>
                 </div>
                 <button
-                  className="inline-flex min-h-10 shrink-0 items-center rounded-lg border border-slate-200 bg-slate-50 px-3.5 text-sm font-semibold text-slate-700"
+                  className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-lg border border-slate-200 bg-slate-50 px-3.5 text-sm font-semibold text-slate-700 sm:justify-start"
                   type="button"
                   onClick={() => openPreview(documentItem)}
                 >
-                  Preview
+                  Review
                 </button>
               </article>
             ))
@@ -660,7 +680,7 @@ function App() {
               <div>
                 <strong className="text-slate-900">No PDF selected</strong>
                 <p className="mt-0.5 text-[15px]">
-                  Upload a document to see its details.
+                  Your next upload will appear here for quick access.
                 </p>
               </div>
             </div>
@@ -680,40 +700,40 @@ function App() {
           className="m-0 text-[clamp(24px,3vw,32px)] leading-tight text-slate-900"
           id="support-title"
         >
-          Built for quick PDF review
+          A simpler path from upload to review
         </h2>
         <p className="mt-3 max-w-3xl text-[17px] leading-7 text-slate-600">
-          Upload a file, scan the first pages, and move through the document in a
-          focused preview flow without leaving the workspace.
+          One clear action, immediate feedback, and a focused preview flow help
+          you stay on the document instead of spending attention on extra steps.
         </p>
       </section>
 
       {isPreviewOpen && selectedDocument ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-[2px]"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-3 sm:p-4 backdrop-blur-[2px]"
           role="dialog"
           aria-modal="true"
           aria-labelledby="preview-modal-title"
           onClick={closePreview}
         >
           <div
-            className="flex max-h-[min(92dvh,980px)] w-[min(980px,100%)] flex-col overflow-hidden rounded-[20px] border border-slate-200 bg-slate-50 shadow-[0_32px_90px_rgba(15,23,42,0.28)]"
+            className="flex max-h-[min(94dvh,980px)] w-full max-w-[980px] flex-col overflow-hidden rounded-[20px] border border-slate-200 bg-slate-50 shadow-[0_32px_90px_rgba(15,23,42,0.28)]"
             onClick={(event) => event.stopPropagation()}
           >
-            <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4">
-              <div>
+            <div className="flex flex-col gap-4 border-b border-slate-200 bg-white px-4 py-4 sm:px-5 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
                 <p className="mb-1 text-xs font-extrabold uppercase tracking-[0.2em] text-orange-700">
-                  Preview
+                  Review mode
                 </p>
                 <h2
-                  className="text-xl font-bold text-slate-900"
+                  className="truncate text-xl font-bold text-slate-900"
                   id="preview-modal-title"
                 >
                   {selectedDocument.name}
                 </h2>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
                 {selectedDocument.hostedUrl ? (
                   <a
                     className="inline-flex min-h-10 items-center rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-700 no-underline"
@@ -721,7 +741,7 @@ function App() {
                     target="_blank"
                     rel="noreferrer"
                   >
-                    Open hosted PDF
+                    Open file
                   </a>
                 ) : null}
                 <button
@@ -730,13 +750,13 @@ function App() {
                   type="button"
                   onClick={closePreview}
                 >
-                  Close
+                  Done
                 </button>
               </div>
             </div>
 
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-5 py-3">
-              <div className="flex flex-wrap gap-2 text-sm text-slate-500">
+            <div className="flex flex-col gap-3 border-b border-slate-200 bg-slate-50 px-4 py-3 sm:px-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="grid grid-cols-1 gap-2 text-sm text-slate-500 sm:grid-cols-3">
                 <span className="rounded-full bg-white px-3 py-1">
                   {selectedDocument.sizeLabel}
                 </span>
@@ -748,7 +768,7 @@ function App() {
                 </span>
               </div>
 
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <button
                   className="inline-flex min-h-10 items-center rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
                   type="button"
@@ -772,7 +792,7 @@ function App() {
               </div>
             </div>
 
-            <div className="overflow-auto p-5">
+            <div className="overflow-auto p-3 sm:p-5">
               <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.18)]">
                 <Document
                   file={previewFile}
@@ -788,7 +808,7 @@ function App() {
                     pageNumber={previewPage}
                     renderAnnotationLayer={false}
                     renderTextLayer={false}
-                    width={820}
+                    width={previewPageWidth}
                   />
                 </Document>
               </div>
