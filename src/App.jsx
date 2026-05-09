@@ -11,7 +11,7 @@ function App() {
           aria-label="Quick Fill home"
         >
           <span
-            className="grid size-9 place-items-center hidden rounded-lg bg-teal-800 text-[13px] font-bold text-white"
+            className=" size-9 place-items-center hidden rounded-lg bg-teal-800 text-[13px] font-bold text-white"
             aria-hidden="true"
           >
             QF
