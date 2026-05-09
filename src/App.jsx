@@ -1,8 +1,8 @@
 function App() {
   return (
-    <main className="min-h-svh bg-slate-50 text-slate-600">
+    <main className="min-h-svh overflow-x-hidden bg-slate-50 text-slate-600">
       <header
-        className="mx-auto flex w-[min(1120px,calc(100%-40px))] items-center justify-between gap-5 py-6 max-[520px]:w-[calc(100%-32px)] max-[520px]:flex-col max-[520px]:items-start md:w-[min(1120px,calc(100%-40px))]"
+        className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-4 py-5 sm:px-6 lg:px-8 max-[520px]:flex-col max-[520px]:items-start"
         aria-label="Application header"
       >
         <a
@@ -39,7 +39,7 @@ function App() {
       </header>
 
       <section
-        className="mx-auto grid w-[min(1120px,calc(100%-40px))] grid-cols-[minmax(0,0.9fr)_minmax(360px,1.1fr)] items-center gap-12 py-20 max-[820px]:w-[calc(100%-32px)] max-[820px]:grid-cols-1 max-[820px]:gap-7 max-[820px]:py-12"
+        className="mx-auto grid w-full max-w-6xl grid-cols-1 items-center gap-8 px-4 py-10 sm:px-6 sm:py-14 lg:grid-cols-[minmax(0,0.9fr)_minmax(360px,1.1fr)] lg:gap-12 lg:px-8 lg:py-20"
         aria-labelledby="upload-title"
       >
         <div className="text-left">
@@ -47,31 +47,30 @@ function App() {
             PDF workspace
           </p>
           <h1
-            className="mb-5 max-w-2xl text-[clamp(42px,7vw,76px)] font-bold leading-none text-slate-900"
+            className="mb-4 max-w-2xl text-4xl font-bold leading-tight text-slate-900 sm:text-5xl sm:leading-none lg:text-7xl"
             id="upload-title"
           >
             Upload a PDF to get started
           </h1>
-          <p className="max-w-xl text-[19px] leading-8">
-            Choose a document from your device and prepare it for viewing,
-            editing, and downloading.
+          <p className="max-w-xl text-lg leading-7 sm:text-lg sm:leading-8">
+            Choose a document from your device.
           </p>
         </div>
 
         <section
-          className="rounded-lg border border-slate-200 bg-white/90 p-4 shadow-[0_24px_70px_rgba(22,28,36,0.12)]"
+          className="rounded-lg border border-slate-200 bg-white/90 p-3 shadow-[0_18px_50px_rgba(22,28,36,0.1)] sm:p-4 sm:shadow-[0_24px_70px_rgba(22,28,36,0.12)]"
           aria-label="PDF upload area"
         >
           <label
-            className="grid min-h-[340px] cursor-pointer place-items-center content-center gap-5 rounded-lg border-2 border-dashed border-teal-300 bg-teal-50/40 p-8 text-slate-600 hover:border-teal-800 hover:bg-teal-50 max-[820px]:min-h-[300px] max-[820px]:p-6"
+            className="grid min-h-64 cursor-pointer place-items-center content-center gap-4 rounded-lg border-2 border-dashed border-teal-300 bg-teal-50/40 p-5 text-slate-600 hover:border-teal-800 hover:bg-teal-50 sm:min-h-[300px] sm:gap-5 sm:p-6 lg:min-h-[340px] lg:p-8"
             htmlFor="pdf-upload"
           >
             <span
-              className="grid size-[76px] place-items-center rounded-lg bg-teal-100 text-teal-800"
+              className="grid size-16 place-items-center rounded-lg bg-teal-100 text-teal-800 sm:size-[76px]"
               aria-hidden="true"
             >
               <svg
-                className="size-[34px] fill-none stroke-current stroke-[1.8]"
+                className="size-8 fill-none stroke-current stroke-[1.8] sm:size-[34px]"
                 viewBox="0 0 24 24"
                 role="presentation"
                 strokeLinecap="round"
@@ -84,13 +83,13 @@ function App() {
             </span>
 
             <span className="grid gap-1.5 text-center">
-              <strong className="text-2xl text-slate-900 max-[520px]:text-[21px]">
+              <strong className="text-xl text-slate-900 sm:text-2xl">
                 Drop your PDF here
               </strong>
               <span>or browse files from your computer</span>
             </span>
 
-            <span className="inline-flex min-h-11 items-center justify-center rounded-lg bg-teal-800 px-5 font-bold text-white">
+            <span className="inline-flex min-h-11 w-full items-center justify-center rounded-lg bg-teal-800 px-5 font-bold text-white sm:w-auto">
               Select PDF
             </span>
           </label>
@@ -102,7 +101,7 @@ function App() {
             accept="application/pdf"
           />
 
-          <div className="flex flex-wrap justify-between gap-2.5 px-1 pt-4 text-sm text-slate-500 max-[520px]:flex-col">
+          <div className="flex flex-col gap-2 px-1 pt-4 text-sm text-slate-500 sm:flex-row sm:flex-wrap sm:justify-between sm:gap-2.5">
             <span>PDF only</span>
             <span>Up to 25 MB</span>
             <span>No file selected</span>
@@ -111,7 +110,7 @@ function App() {
       </section>
 
       <section
-        className="mx-auto flex w-[min(1120px,calc(100%-40px))] items-center justify-between gap-6 border-t border-slate-200 py-8 pb-14 text-left max-[820px]:w-[calc(100%-32px)] max-[820px]:flex-col max-[820px]:items-stretch"
+        className="mx-auto flex w-full max-w-6xl flex-col items-stretch gap-5 border-t border-slate-200 px-4 py-8 text-left sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:gap-6 lg:px-8 lg:pb-14"
         id="recent"
         aria-labelledby="recent-title"
       >
@@ -120,7 +119,7 @@ function App() {
             Recent documents
           </p>
           <h2
-            className="m-0 text-[clamp(26px,4vw,38px)] leading-tight text-slate-900"
+            className="m-0 text-2xl leading-tight text-slate-900 sm:text-3xl lg:text-[38px]"
             id="recent-title"
           >
             Your uploaded files will appear here
@@ -128,7 +127,7 @@ function App() {
         </div>
 
         <div
-          className="flex min-w-[min(420px,100%)] items-center gap-3.5 rounded-lg border border-slate-200 bg-white p-4"
+          className="flex w-full min-w-0 items-center gap-3.5 rounded-lg border border-slate-200 bg-white p-4 lg:max-w-[420px]"
           aria-label="Empty recent file placeholder"
         >
           <span
@@ -144,6 +143,43 @@ function App() {
             </p>
           </div>
         </div>
+      </section>
+
+      <section
+        className="mx-auto flex w-full max-w-6xl flex-col items-stretch gap-5 border-t border-slate-200 px-4 py-8 pb-12 text-left sm:px-6 lg:flex-row lg:items-center lg:justify-between lg:gap-6 lg:px-8 lg:pb-14"
+        id="support"
+        aria-labelledby="support-title"
+      >
+        <div>
+          <p className="mb-3 text-[13px] font-extrabold uppercase tracking-widest text-orange-700">
+            Support
+          </p>
+          <h2
+            className="m-0 text-2xl leading-tight text-slate-900 sm:text-3xl lg:text-[38px]"
+            id="support-title"
+          >
+            Need help with Quick Fill?
+          </h2>
+        </div>
+
+        <a
+          className="flex w-full min-w-0 items-center gap-3.5 rounded-lg border border-slate-200 bg-white p-4 text-slate-600 no-underline hover:border-teal-300 hover:bg-teal-50 focus-visible:border-teal-300 focus-visible:bg-teal-50 lg:max-w-[420px]"
+          href="mailto:thequickfill@gmail.com"
+          aria-label="Email Quick Fill support at thequickfill@gmail.com"
+        >
+          <span
+            className="grid h-14 w-12 shrink-0 place-items-center rounded-md bg-teal-800 text-xs font-extrabold text-white"
+            aria-hidden="true"
+          >
+            @
+          </span>
+          <div className="min-w-0">
+            <strong className="text-slate-900">Email support</strong>
+            <p className="mt-0.5 break-all text-[15px]">
+              thequickfill@gmail.com
+            </p>
+          </div>
+        </a>
       </section>
     </main>
   )
