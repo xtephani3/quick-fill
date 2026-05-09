@@ -701,11 +701,11 @@ function App() {
             className="m-0 text-2xl leading-tight text-slate-900 sm:text-3xl lg:text-[38px]"
             id="support-title"
           >
-            A simpler path from upload to review
+            Need help moving forward?
           </h2>
           <p className="mt-3 max-w-2xl text-[15px] leading-7 text-slate-600 sm:text-[17px]">
-            One clear action, immediate feedback, and a focused preview flow keep
-            attention on the document instead of the process around it.
+            If something feels unclear, slow, or stuck, reach out and we’ll help
+            you get back to your document quickly.
           </p>
         </div>
 
@@ -721,7 +721,7 @@ function App() {
             @
           </span>
           <div className="min-w-0">
-            <strong className="text-slate-900">Email support</strong>
+            <strong className="text-slate-900">Get help by email</strong>
             <p className="mt-0.5 break-all text-[15px]">
               thequickfill@gmail.com
             </p>
