@@ -689,44 +689,36 @@ function App() {
       </section>
 
       <section
-        className="mx-auto flex w-full max-w-6xl flex-col items-stretch gap-5 border-t border-slate-200 px-4 py-8 pb-12 text-left sm:px-6 lg:flex-row lg:items-start lg:justify-between lg:gap-6 lg:px-8 lg:pb-14"
+        className="mx-auto w-full max-w-6xl border-t border-slate-200 px-4 py-8 pb-12 text-left sm:px-6 lg:px-8 lg:pb-14"
         id="support"
         aria-labelledby="support-title"
       >
-        <div>
-          <p className="mb-3 text-[13px] font-extrabold uppercase tracking-widest text-orange-700">
+        <div className="rounded-[28px] border border-slate-200 bg-white px-5 py-6 shadow-[0_20px_60px_rgba(15,23,42,0.06)] sm:px-8 sm:py-8 lg:px-10">
+          <p className="text-[13px] font-extrabold uppercase tracking-widest text-slate-500">
             Support
           </p>
-          <h2
-            className="m-0 text-2xl leading-tight text-slate-900 sm:text-3xl lg:text-[38px]"
-            id="support-title"
-          >
-            Need help moving forward?
-          </h2>
-          <p className="mt-3 max-w-2xl text-[15px] leading-7 text-slate-600 sm:text-[17px]">
-            If something feels unclear, slow, or stuck, reach out and we’ll help
-            you get back to your document quickly.
-          </p>
-        </div>
+          <div className="mt-3 flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="min-w-0 max-w-2xl">
+              <h2
+                className="m-0 text-[clamp(1.75rem,3.8vw,2.75rem)] font-bold leading-tight text-slate-950"
+                id="support-title"
+              >
+                If the PDF stops, email us.
+              </h2>
+              <p className="mt-3 text-base leading-7 text-slate-700">
+                Send the file name and what failed. That is enough to start.
+              </p>
+            </div>
 
-        <a
-          className="flex w-full min-w-0 items-center gap-3.5 rounded-lg border border-slate-200 bg-white p-4 text-slate-600 no-underline hover:border-teal-300 hover:bg-teal-50 focus-visible:border-teal-300 focus-visible:bg-teal-50 lg:max-w-[470px]"
-          href="mailto:thequickfill@gmail.com"
-          aria-label="Email Quick Fill support at thequickfill@gmail.com"
-        >
-          <span
-            className="grid h-14 w-12 shrink-0 place-items-center rounded-md bg-teal-800 text-xs font-extrabold text-white"
-            aria-hidden="true"
-          >
-            @
-          </span>
-          <div className="min-w-0">
-            <strong className="text-slate-900">Get help by email</strong>
-            <p className="mt-0.5 break-all text-[15px]">
+            <a
+              className="inline-flex min-h-12 items-center justify-center rounded-2xl bg-slate-950 px-5 py-3 text-sm font-semibold text-white no-underline transition hover:-translate-y-0.5 hover:bg-slate-800 focus-visible:-translate-y-0.5"
+              href="mailto:thequickfill@gmail.com"
+              aria-label="Email Quick Fill support at thequickfill@gmail.com"
+            >
               thequickfill@gmail.com
-            </p>
+            </a>
           </div>
-        </a>
+        </div>
       </section>
 
       {isPreviewOpen && selectedDocument ? (
