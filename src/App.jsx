@@ -1,4 +1,358 @@
+import { useEffect, useRef, useState } from 'react'
+import { Document, Page, pdfjs } from 'react-pdf'
+
+pdfjs.GlobalWorkerOptions.workerSrc = new URL(
+  'pdfjs-dist/build/pdf.worker.min.mjs',
+  import.meta.url,
+).toString()
+
+const MAX_PDF_SIZE = 25 * 1024 * 1024
+const CLOUDINARY_CLOUD_NAME = import.meta.env.VITE_CLOUDINARY_CLOUD_NAME ?? ''
+const CLOUDINARY_UPLOAD_PRESET = import.meta.env.VITE_CLOUDINARY_UPLOAD_PRESET ?? ''
+
+function formatFileSize(bytes) {
+  if (bytes < 1024 * 1024) {
+    return `${Math.max(1, Math.round(bytes / 1024))} KB`
+  }
+
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function formatUploadedTime(date) {
+  return new Intl.DateTimeFormat('en', {
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    month: 'short',
+  }).format(date)
+}
+
+function getUploadErrorMessage(error) {
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  return 'Upload failed. Try again with another PDF.'
+}
+
+function isPdfFile(file) {
+  const name = file.name.toLowerCase()
+
+  return file.type === 'application/pdf' || name.endsWith('.pdf')
+}
+
+function uploadPdfToCloudinary(file, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest()
+    const formData = new FormData()
+
+    formData.append('file', file)
+    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET)
+
+    xhr.open(
+      'POST',
+      `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+    )
+
+    xhr.upload.addEventListener('progress', (event) => {
+      if (!event.lengthComputable) {
+        return
+      }
+
+      const progress = Math.round((event.loaded / event.total) * 100)
+      onProgress(progress)
+    })
+
+    xhr.addEventListener('load', () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve(JSON.parse(xhr.responseText))
+        return
+      }
+
+      try {
+        const response = JSON.parse(xhr.responseText)
+        reject(new Error(response.error?.message ?? 'Cloudinary upload failed.'))
+      } catch {
+        reject(new Error('Cloudinary upload failed.'))
+      }
+    })
+
+    xhr.addEventListener('error', () => {
+      reject(new Error('Network error while uploading to Cloudinary.'))
+    })
+
+    xhr.send(formData)
+  })
+}
+
 function App() {
+  const [dragActive, setDragActive] = useState(false)
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false)
+  const [pageCount, setPageCount] = useState(0)
+  const [previewPage, setPreviewPage] = useState(1)
+  const [previewError, setPreviewError] = useState('')
+  const [recentDocuments, setRecentDocuments] = useState([])
+  const [selectedDocument, setSelectedDocument] = useState(null)
+  const [uploadState, setUploadState] = useState({
+    error: '',
+    progress: 0,
+    status: 'idle',
+  })
+
+  const fileInputRef = useRef(null)
+  const previewCloseButtonRef = useRef(null)
+  const objectUrlRef = useRef(null)
+  const uploadRequestRef = useRef(0)
+
+  useEffect(() => {
+    return () => {
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!isPreviewOpen) {
+      document.body.style.overflow = ''
+      return undefined
+    }
+
+    document.body.style.overflow = 'hidden'
+    previewCloseButtonRef.current?.focus()
+
+    function handleKeyDown(event) {
+      if (event.key === 'Escape') {
+        setIsPreviewOpen(false)
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+
+    return () => {
+      document.body.style.overflow = ''
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+  }, [isPreviewOpen])
+
+  const cloudinaryConfigured = Boolean(
+    CLOUDINARY_CLOUD_NAME && CLOUDINARY_UPLOAD_PRESET,
+  )
+  const previewFile = selectedDocument?.localUrl ?? null
+
+  function updateRecentDocuments(nextDocument) {
+    setRecentDocuments((currentDocuments) => {
+      const remainingDocuments = currentDocuments.filter(({ id }) => id !== nextDocument.id)
+      return [nextDocument, ...remainingDocuments].slice(0, 4)
+    })
+  }
+
+  function resetInput() {
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  async function prepareDocument(file) {
+    if (!isPdfFile(file)) {
+      setUploadState({
+        error: 'Only PDF files are supported.',
+        progress: 0,
+        status: 'error',
+      })
+      resetInput()
+      return
+    }
+
+    if (file.size > MAX_PDF_SIZE) {
+      setUploadState({
+        error: 'The selected file is larger than 25 MB.',
+        progress: 0,
+        status: 'error',
+      })
+      resetInput()
+      return
+    }
+
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current)
+    }
+
+    const nextObjectUrl = URL.createObjectURL(file)
+    objectUrlRef.current = nextObjectUrl
+
+    const documentId = crypto.randomUUID()
+    const documentDate = new Date()
+    const nextDocument = {
+      hostedUrl: '',
+      id: documentId,
+      localUrl: nextObjectUrl,
+      name: file.name,
+      pages: 0,
+      sizeLabel: formatFileSize(file.size),
+      statusLabel: cloudinaryConfigured ? 'Uploading to Cloudinary' : 'Preview only',
+      uploadedAt: formatUploadedTime(documentDate),
+    }
+
+    uploadRequestRef.current += 1
+    const requestId = uploadRequestRef.current
+
+    setPageCount(0)
+    setIsPreviewOpen(true)
+    setPreviewError('')
+    setPreviewPage(1)
+    setSelectedDocument(nextDocument)
+
+    if (!cloudinaryConfigured) {
+      setUploadState({
+        error: 'Your PDF is ready for preview.',
+        progress: 0,
+        status: 'needs-config',
+      })
+      updateRecentDocuments(nextDocument)
+      resetInput()
+      return
+    }
+
+    setUploadState({
+      error: '',
+      progress: 0,
+      status: 'uploading',
+    })
+
+    try {
+      const uploadResponse = await uploadPdfToCloudinary(file, (progress) => {
+        if (uploadRequestRef.current !== requestId) {
+          return
+        }
+
+        setUploadState({
+          error: '',
+          progress,
+          status: 'uploading',
+        })
+      })
+
+      if (uploadRequestRef.current !== requestId) {
+        return
+      }
+
+      const uploadedDocument = {
+        ...nextDocument,
+        hostedUrl: uploadResponse.secure_url,
+        pages: uploadResponse.pages ?? 0,
+        publicId: uploadResponse.public_id,
+        statusLabel: 'Hosted on Cloudinary',
+      }
+
+      setSelectedDocument(uploadedDocument)
+      updateRecentDocuments(uploadedDocument)
+      setUploadState({
+        error: '',
+        progress: 100,
+        status: 'success',
+      })
+    } catch (error) {
+      if (uploadRequestRef.current !== requestId) {
+        return
+      }
+
+      setUploadState({
+        error: getUploadErrorMessage(error),
+        progress: 0,
+        status: 'error',
+      })
+      updateRecentDocuments({
+        ...nextDocument,
+        statusLabel: 'Preview ready, upload failed',
+      })
+    } finally {
+      resetInput()
+    }
+  }
+
+  function handleInputChange(event) {
+    const [file] = Array.from(event.target.files ?? [])
+
+    if (!file) {
+      return
+    }
+
+    void prepareDocument(file)
+  }
+
+  function handleDragEnter(event) {
+    event.preventDefault()
+    setDragActive(true)
+  }
+
+  function handleDragLeave(event) {
+    event.preventDefault()
+    setDragActive(false)
+  }
+
+  function handleDragOver(event) {
+    event.preventDefault()
+    setDragActive(true)
+  }
+
+  function handleDrop(event) {
+    event.preventDefault()
+    setDragActive(false)
+
+    const [file] = Array.from(event.dataTransfer.files ?? [])
+
+    if (!file) {
+      return
+    }
+
+    void prepareDocument(file)
+  }
+
+  function handleDocumentLoadSuccess({ numPages }) {
+    setPageCount(numPages)
+    setPreviewPage(1)
+    setPreviewError('')
+
+    setSelectedDocument((currentDocument) => {
+      if (!currentDocument) {
+        return currentDocument
+      }
+
+      return {
+        ...currentDocument,
+        pages: currentDocument.pages || numPages,
+      }
+    })
+  }
+
+  function handleDocumentLoadError(error) {
+    setPreviewError(getUploadErrorMessage(error))
+  }
+
+  function showPreviousPage() {
+    setPreviewPage((currentPage) => Math.max(1, currentPage - 1))
+  }
+
+  function showNextPage() {
+    setPreviewPage((currentPage) => Math.min(pageCount, currentPage + 1))
+  }
+
+  function openPreview(documentItem = selectedDocument) {
+    if (!documentItem?.localUrl) {
+      return
+    }
+
+    setSelectedDocument(documentItem)
+    setPreviewError('')
+    setPreviewPage(1)
+    setIsPreviewOpen(true)
+  }
+
+  function closePreview() {
+    setIsPreviewOpen(false)
+  }
+
   return (
     <main className="min-h-svh bg-slate-50 text-slate-600">
       <header
@@ -10,12 +364,6 @@ function App() {
           href="/"
           aria-label="Quick Fill home"
         >
-          <span
-            className=" size-9 place-items-center hidden rounded-lg bg-teal-800 text-[13px] font-bold text-white"
-            aria-hidden="true"
-          >
-            QF
-          </span>
           <span>Quick Fill</span>
         </a>
 
@@ -39,7 +387,7 @@ function App() {
       </header>
 
       <section
-        className="mx-auto grid w-[min(1120px,calc(100%-40px))] grid-cols-[minmax(0,0.9fr)_minmax(360px,1.1fr)] items-center gap-12 py-20 max-[820px]:w-[calc(100%-32px)] max-[820px]:grid-cols-1 max-[820px]:gap-7 max-[820px]:py-12"
+        className="mx-auto grid w-[min(1120px,calc(100%-40px))] grid-cols-[minmax(0,0.88fr)_minmax(360px,1.12fr)] items-start gap-12 py-20 max-[820px]:w-[calc(100%-32px)] max-[820px]:grid-cols-1 max-[820px]:gap-7 max-[820px]:py-12"
         aria-labelledby="upload-title"
       >
         <div className="text-left">
@@ -53,65 +401,203 @@ function App() {
             Upload a PDF to get started
           </h1>
           <p className="max-w-xl text-[19px] leading-8">
-            Choose a document from your device and prepare it for viewing,
-            editing, and downloading.
+            Drop in a document, host it in Cloudinary, and move straight into a
+            clean preview view without leaving the workspace.
           </p>
+
+          <div className="mt-10 grid gap-3 text-sm text-slate-500">
+            <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-4 py-3">
+              <span
+                className={`inline-flex min-h-8 items-center rounded-full px-3 font-semibold ${
+                  cloudinaryConfigured
+                    ? 'bg-teal-100 text-teal-900'
+                    : 'bg-orange-100 text-orange-800'
+                }`}
+              >
+                {cloudinaryConfigured ? 'Uploads enabled' : 'Preview mode'}
+              </span>
+              <span>
+                {cloudinaryConfigured
+                  ? 'Your PDF can be uploaded and previewed here.'
+                  : 'You can preview PDFs in this workspace.'}
+              </span>
+            </div>
+
+            <div className="grid gap-2 rounded-lg border border-slate-200 bg-white p-4">
+              <strong className="text-slate-900">Workspace rules</strong>
+              <div className="flex flex-wrap gap-2.5">
+                <span className="rounded-full bg-slate-100 px-3 py-1">PDF only</span>
+                <span className="rounded-full bg-slate-100 px-3 py-1">25 MB max</span>
+                <span className="rounded-full bg-slate-100 px-3 py-1">
+                  One-page preview navigation
+                </span>
+              </div>
+            </div>
+          </div>
         </div>
 
         <section
           className="rounded-lg border border-slate-200 bg-white/90 p-4 shadow-[0_24px_70px_rgba(22,28,36,0.12)]"
           aria-label="PDF upload area"
         >
-          <label
-            className="grid min-h-[340px] cursor-pointer place-items-center content-center gap-5 rounded-lg border-2 border-dashed border-teal-300 bg-teal-50/40 p-8 text-slate-600 hover:border-teal-800 hover:bg-teal-50 max-[820px]:min-h-[300px] max-[820px]:p-6"
-            htmlFor="pdf-upload"
+          <div
+            className={`grid gap-4 rounded-lg border-2 border-dashed p-4 transition-colors ${
+              dragActive
+                ? 'border-teal-800 bg-teal-50'
+                : 'border-slate-200 bg-slate-50/80'
+            }`}
+            onDragEnter={handleDragEnter}
+            onDragLeave={handleDragLeave}
+            onDragOver={handleDragOver}
+            onDrop={handleDrop}
           >
-            <span
-              className="grid size-[76px] place-items-center rounded-lg bg-teal-100 text-teal-800"
-              aria-hidden="true"
+            <label
+              className={`grid min-h-[240px] cursor-pointer place-items-center content-center gap-5 rounded-lg border border-transparent p-8 text-slate-600 max-[820px]:min-h-[220px] max-[820px]:p-6 ${
+                dragActive ? 'bg-white' : 'bg-teal-50/40'
+              }`}
+              htmlFor="pdf-upload"
             >
-              <svg
-                className="size-[34px] fill-none stroke-current stroke-[1.8]"
-                viewBox="0 0 24 24"
-                role="presentation"
-                strokeLinecap="round"
-                strokeLinejoin="round"
+              <span
+                className="grid size-[76px] place-items-center rounded-lg bg-teal-100 text-teal-800"
+                aria-hidden="true"
               >
-                <path d="M12 3v12" />
-                <path d="m7 8 5-5 5 5" />
-                <path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" />
-              </svg>
-            </span>
+                <svg
+                  className="size-[34px] fill-none stroke-current stroke-[1.8]"
+                  viewBox="0 0 24 24"
+                  role="presentation"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                >
+                  <path d="M12 3v12" />
+                  <path d="m7 8 5-5 5 5" />
+                  <path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4" />
+                </svg>
+              </span>
 
-            <span className="grid gap-1.5 text-center">
-              <strong className="text-2xl text-slate-900 max-[520px]:text-[21px]">
-                Drop your PDF here
-              </strong>
-              <span>or browse files from your computer</span>
-            </span>
+              <span className="grid gap-1.5 text-center">
+                <strong className="text-2xl text-slate-900 max-[520px]:text-[21px]">
+                  {dragActive ? 'Release to upload your PDF' : 'Drop your PDF here'}
+                </strong>
+                <span>or browse files from your computer</span>
+              </span>
 
-            <span className="inline-flex min-h-11 items-center justify-center rounded-lg bg-teal-800 px-5 font-bold text-white">
-              Select PDF
-            </span>
-          </label>
+              <span className="inline-flex min-h-11 items-center justify-center rounded-lg bg-teal-800 px-5 font-bold text-white">
+                Select PDF
+              </span>
+            </label>
 
-          <input
-            className="sr-only"
-            id="pdf-upload"
-            type="file"
-            accept="application/pdf"
-          />
+            <input
+              ref={fileInputRef}
+              className="sr-only"
+              id="pdf-upload"
+              type="file"
+              accept="application/pdf"
+              onChange={handleInputChange}
+            />
 
-          <div className="flex flex-wrap justify-between gap-2.5 px-1 pt-4 text-sm text-slate-500 max-[520px]:flex-col">
-            <span>PDF only</span>
-            <span>Up to 25 MB</span>
-            <span>No file selected</span>
+            <div className="flex flex-wrap justify-between gap-2.5 px-1 text-sm text-slate-500 max-[520px]:flex-col">
+              <span>PDF only</span>
+              <span>Up to 25 MB</span>
+              <span>{selectedDocument?.name ?? 'No file selected'}</span>
+            </div>
+
+            {uploadState.status === 'uploading' ? (
+              <div
+                className="grid gap-2 rounded-lg border border-teal-200 bg-teal-50 px-4 py-3 text-sm"
+                aria-live="polite"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <strong className="text-slate-900">Uploading to Cloudinary</strong>
+                  <span className="font-semibold text-teal-900">
+                    {uploadState.progress}%
+                  </span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-teal-100">
+                  <div
+                    className="h-full rounded-full bg-teal-800 transition-[width] duration-200"
+                    style={{ width: `${uploadState.progress}%` }}
+                  />
+                </div>
+              </div>
+            ) : null}
+
+            {uploadState.error ? (
+              <p
+                className={`rounded-lg px-4 py-3 text-sm ${
+                  uploadState.status === 'needs-config'
+                    ? 'bg-teal-50 text-teal-900'
+                    : 'bg-red-50 text-red-800'
+                }`}
+                aria-live="polite"
+              >
+                {uploadState.error}
+              </p>
+            ) : null}
           </div>
+
+          {selectedDocument ? (
+            <div className="mt-4 grid gap-4 rounded-lg border border-slate-200 bg-white p-4">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div>
+                  <p className="mb-1 text-xs font-extrabold uppercase tracking-[0.2em] text-orange-700">
+                    Ready
+                  </p>
+                  <h2 className="text-xl font-bold text-slate-900">
+                    {selectedDocument.name}
+                  </h2>
+                </div>
+
+                <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-semibold text-slate-700">
+                  {selectedDocument.statusLabel}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap gap-2 text-sm text-slate-500">
+                <span className="rounded-full bg-slate-100 px-3 py-1">
+                  {selectedDocument.sizeLabel}
+                </span>
+                <span className="rounded-full bg-slate-100 px-3 py-1">
+                  {selectedDocument.pages ? `${selectedDocument.pages} pages` : 'Reading pages'}
+                </span>
+                <span className="rounded-full bg-slate-100 px-3 py-1">
+                  {selectedDocument.uploadedAt}
+                </span>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <button
+                  className="inline-flex min-h-11 items-center rounded-lg bg-teal-800 px-4 font-semibold text-white"
+                  type="button"
+                  onClick={() => openPreview(selectedDocument)}
+                >
+                  Open preview
+                </button>
+
+                {selectedDocument.hostedUrl ? (
+                  <a
+                    className="inline-flex min-h-11 items-center rounded-lg border border-slate-200 bg-white px-4 font-semibold text-slate-700 no-underline"
+                    href={selectedDocument.hostedUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open hosted PDF
+                  </a>
+                ) : null}
+
+                <label
+                  className="inline-flex min-h-11 cursor-pointer items-center rounded-lg border border-slate-200 bg-white px-4 font-semibold text-slate-700"
+                  htmlFor="pdf-upload"
+                >
+                  Choose another file
+                </label>
+              </div>
+            </div>
+          ) : null}
         </section>
       </section>
 
       <section
-        className="mx-auto flex w-[min(1120px,calc(100%-40px))] items-center justify-between gap-6 border-t border-slate-200 py-8 pb-14 text-left max-[820px]:w-[calc(100%-32px)] max-[820px]:flex-col max-[820px]:items-stretch"
+        className="mx-auto flex w-[min(1120px,calc(100%-40px))] items-start justify-between gap-6 border-t border-slate-200 py-8 pb-14 text-left max-[820px]:w-[calc(100%-32px)] max-[820px]:flex-col max-[820px]:items-stretch"
         id="recent"
         aria-labelledby="recent-title"
       >
@@ -123,28 +609,199 @@ function App() {
             className="m-0 text-[clamp(26px,4vw,38px)] leading-tight text-slate-900"
             id="recent-title"
           >
-            Your uploaded files will appear here
+            Your latest PDF activity appears here
           </h2>
         </div>
 
-        <div
-          className="flex min-w-[min(420px,100%)] items-center gap-3.5 rounded-lg border border-slate-200 bg-white p-4"
-          aria-label="Empty recent file placeholder"
-        >
-          <span
-            className="grid h-14 w-12 shrink-0 place-items-center rounded-md bg-red-700 text-xs font-extrabold text-white"
-            aria-hidden="true"
-          >
-            PDF
-          </span>
-          <div>
-            <strong className="text-slate-900">No PDF selected</strong>
-            <p className="mt-0.5 text-[15px]">
-              Upload a document to see its details.
-            </p>
-          </div>
+        <div className="grid min-w-[min(470px,100%)] gap-3 max-[820px]:min-w-0">
+          {recentDocuments.length ? (
+            recentDocuments.map((documentItem) => (
+              <article
+                key={documentItem.id}
+                className="flex items-center gap-3.5 rounded-lg border border-slate-200 bg-white p-4"
+              >
+                <span
+                  className="grid h-14 w-12 shrink-0 place-items-center rounded-md bg-red-700 text-xs font-extrabold text-white"
+                  aria-hidden="true"
+                >
+                  PDF
+                </span>
+                <div className="min-w-0 flex-1">
+                  <strong className="block truncate text-slate-900">
+                    {documentItem.name}
+                  </strong>
+                  <p className="mt-0.5 text-[15px]">
+                    {documentItem.pages
+                      ? `${documentItem.pages} pages`
+                      : 'Pages loading'}{' '}
+                    • {documentItem.sizeLabel} • {documentItem.statusLabel}
+                  </p>
+                </div>
+                <button
+                  className="inline-flex min-h-10 shrink-0 items-center rounded-lg border border-slate-200 bg-slate-50 px-3.5 text-sm font-semibold text-slate-700"
+                  type="button"
+                  onClick={() => openPreview(documentItem)}
+                >
+                  Preview
+                </button>
+              </article>
+            ))
+          ) : (
+            <div
+              className="flex items-center gap-3.5 rounded-lg border border-slate-200 bg-white p-4"
+              aria-label="Empty recent file placeholder"
+            >
+              <span
+                className="grid h-14 w-12 shrink-0 place-items-center rounded-md bg-red-700 text-xs font-extrabold text-white"
+                aria-hidden="true"
+              >
+                PDF
+              </span>
+              <div>
+                <strong className="text-slate-900">No PDF selected</strong>
+                <p className="mt-0.5 text-[15px]">
+                  Upload a document to see its details.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </section>
+
+      <section
+        className="mx-auto w-[min(1120px,calc(100%-40px))] border-t border-slate-200 py-8 pb-14 max-[820px]:w-[calc(100%-32px)]"
+        id="support"
+        aria-labelledby="support-title"
+      >
+        <p className="mb-3 text-[13px] font-extrabold uppercase tracking-widest text-orange-700">
+          Workspace
+        </p>
+        <h2
+          className="m-0 text-[clamp(24px,3vw,32px)] leading-tight text-slate-900"
+          id="support-title"
+        >
+          Built for quick PDF review
+        </h2>
+        <p className="mt-3 max-w-3xl text-[17px] leading-7 text-slate-600">
+          Upload a file, scan the first pages, and move through the document in a
+          focused preview flow without leaving the workspace.
+        </p>
+      </section>
+
+      {isPreviewOpen && selectedDocument ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/55 p-4 backdrop-blur-[2px]"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="preview-modal-title"
+          onClick={closePreview}
+        >
+          <div
+            className="flex max-h-[min(92dvh,980px)] w-[min(980px,100%)] flex-col overflow-hidden rounded-[20px] border border-slate-200 bg-slate-50 shadow-[0_32px_90px_rgba(15,23,42,0.28)]"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex flex-wrap items-start justify-between gap-4 border-b border-slate-200 bg-white px-5 py-4">
+              <div>
+                <p className="mb-1 text-xs font-extrabold uppercase tracking-[0.2em] text-orange-700">
+                  Preview
+                </p>
+                <h2
+                  className="text-xl font-bold text-slate-900"
+                  id="preview-modal-title"
+                >
+                  {selectedDocument.name}
+                </h2>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {selectedDocument.hostedUrl ? (
+                  <a
+                    className="inline-flex min-h-10 items-center rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-700 no-underline"
+                    href={selectedDocument.hostedUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open hosted PDF
+                  </a>
+                ) : null}
+                <button
+                  ref={previewCloseButtonRef}
+                  className="inline-flex min-h-10 items-center rounded-lg bg-slate-900 px-3.5 text-sm font-semibold text-white"
+                  type="button"
+                  onClick={closePreview}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-5 py-3">
+              <div className="flex flex-wrap gap-2 text-sm text-slate-500">
+                <span className="rounded-full bg-white px-3 py-1">
+                  {selectedDocument.sizeLabel}
+                </span>
+                <span className="rounded-full bg-white px-3 py-1">
+                  {selectedDocument.pages ? `${selectedDocument.pages} pages` : 'Reading pages'}
+                </span>
+                <span className="rounded-full bg-white px-3 py-1">
+                  {selectedDocument.statusLabel}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <button
+                  className="inline-flex min-h-10 items-center rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  type="button"
+                  onClick={showPreviousPage}
+                  disabled={previewPage <= 1}
+                >
+                  Previous
+                </button>
+                <span className="text-sm font-medium text-slate-500">
+                  Page {previewPage}
+                  {pageCount ? ` of ${pageCount}` : ''}
+                </span>
+                <button
+                  className="inline-flex min-h-10 items-center rounded-lg border border-slate-200 bg-white px-3.5 text-sm font-semibold text-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
+                  type="button"
+                  onClick={showNextPage}
+                  disabled={!pageCount || previewPage >= pageCount}
+                >
+                  Next
+                </button>
+              </div>
+            </div>
+
+            <div className="overflow-auto p-5">
+              <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-[inset_0_0_0_1px_rgba(148,163,184,0.18)]">
+                <Document
+                  file={previewFile}
+                  loading={
+                    <div className="grid min-h-[420px] place-items-center text-sm text-slate-500">
+                      Loading PDF preview…
+                    </div>
+                  }
+                  onLoadSuccess={handleDocumentLoadSuccess}
+                  onLoadError={handleDocumentLoadError}
+                >
+                  <Page
+                    pageNumber={previewPage}
+                    renderAnnotationLayer={false}
+                    renderTextLayer={false}
+                    width={820}
+                  />
+                </Document>
+              </div>
+
+              {previewError ? (
+                <p className="mt-4 rounded-lg bg-red-50 px-4 py-3 text-sm text-red-800">
+                  {previewError}
+                </p>
+              ) : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
     </main>
   )
 }
